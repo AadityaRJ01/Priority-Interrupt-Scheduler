@@ -44,7 +44,23 @@ python3 main.py --mode stress-demo
 ```
 This mode triggers `dd` and `ping` commands while visualizing the resulting spikes in the dashboard.
 
-#### 4. Performance Metrics
+#### 4. CPU Affinity Analysis
+Analyze how interrupts are distributed across cores and how it affects performance.
+```bash
+python3 main.py --mode affinity
+```
+Or for a live, auto-refreshing view with change logging:
+```bash
+python3 main.py --mode affinity-live
+```
+
+**What is `smp_affinity`?**
+A hex bitmask determining which CPU cores can handle a specific IRQ.
+- `01` (binary 0001) -> CPU 0 only (Pinned)
+- `03` (binary 0011) -> CPUs 0 and 1
+- `0f` (binary 1111) -> CPUs 0, 1, 2, and 3 (Fully distributed)
+
+#### 5. Performance Metrics
 Compare the efficiency of Preemptive vs Non-Preemptive scheduling.
 ```bash
 python3 metrics.py
