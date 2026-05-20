@@ -52,7 +52,8 @@ class Scheduler:
 
     def run(self):
         """
-        Simulates the scheduling process over a timeline.
+        Simulates the scheduling process over a timeline as a generator.
+        Yields snapshots of the system state at each significant event.
         """
         current_time = 0.0
         pending = self.all_interrupts[:]
@@ -78,11 +79,26 @@ class Scheduler:
             intr.finish_time = intr.start_time + intr.burst_time
             intr.waiting_time = round(intr.start_time - intr.arrival_time, 2)
             intr.turnaround_time = round(intr.finish_time - intr.arrival_time, 2)
-            intr.state = "COMPLETED"
             intr.run_intervals = [(intr.start_time, intr.finish_time)]
             
+            # Yield state before completion for live tracking
+            yield {
+                "time": current_time,
+                "active_interrupt": intr,
+                "event": f"START: IRQ {intr.irq_number}",
+                "ready_queue": [e[-1] for e in self.ready_queue._heap]
+            }
+
+            intr.state = "COMPLETED"
             self.execution_log.append(intr)
             current_time = intr.finish_time
+            
+            yield {
+                "time": current_time,
+                "active_interrupt": None,
+                "event": f"FINISH: IRQ {intr.irq_number}",
+                "ready_queue": [e[-1] for e in self.ready_queue._heap]
+            }
             
         return self.execution_log
 
@@ -101,6 +117,7 @@ class PreemptiveScheduler(Scheduler):
     def simulate(self):
         """
         Real-time discrete event simulation for nested interrupts.
+        Yields state snapshots at each event (Arrival, Preemption, Completion).
         """
         current_time = 0.0
         pending = sorted(self.all_interrupts, key=lambda x: x.arrival_time)
@@ -116,45 +133,80 @@ class PreemptiveScheduler(Scheduler):
                     # PREEMPT!
                     active_intr.state = "WAITING"
                     active_intr.preemption_count += 1
-                    # Record end of current interval
                     active_intr.run_intervals[-1] = (active_intr.run_intervals[-1][0], current_time)
                     
                     self.context_switches += 1
                     self.context_stack.append(active_intr)
-                    self.preemption_log.append(
-                        f"[{current_time}ms] PREEMPTION: {arrived.irq_type}(P{arrived.priority}) "
-                        f"preempts {active_intr.irq_type}(P{active_intr.priority})"
-                    )
-                    
+                    msg = f"PREEMPT: IRQ {arrived.irq_number} preempts {active_intr.irq_number}"
+                    self.preemption_log.append(f"[{current_time}ms] {msg}")
                     self.trace.append((current_time, "PREEMPT", active_intr, arrived))
                     
+                    yield {
+                        "time": current_time,
+                        "active_interrupt": active_intr,
+                        "event": msg,
+                        "ready_queue": [e[-1] for e in self.ready_queue._heap],
+                        "stack": self.context_stack[:]
+                    }
+
                     # Start the new interrupt
                     active_intr = arrived
                     active_intr.start_time = current_time
                     active_intr.state = "RUNNING"
                     active_intr.run_intervals.append((current_time, None))
                     self.trace.append((current_time, "START", active_intr))
+                    
+                    yield {
+                        "time": current_time,
+                        "active_interrupt": active_intr,
+                        "event": f"START: IRQ {active_intr.irq_number}",
+                        "ready_queue": [e[-1] for e in self.ready_queue._heap],
+                        "stack": self.context_stack[:]
+                    }
                 else:
-                    # Just add to ready queue (min-heap)
+                    # Just add to ready queue
                     self.ready_queue.push(arrived)
+                    yield {
+                        "time": current_time,
+                        "active_interrupt": active_intr,
+                        "event": f"ARRIVAL: IRQ {arrived.irq_number}",
+                        "ready_queue": [e[-1] for e in self.ready_queue._heap],
+                        "stack": self.context_stack[:]
+                    }
             
             # 2. If no active interrupt, pick from ready queue OR context stack
             if not active_intr:
-                # Priority: Fresh ready interrupts > Paused interrupts (LIFO)
                 if not self.ready_queue.is_empty():
                     active_intr = self.ready_queue.pop()
                     if active_intr.remaining_time == active_intr.burst_time:
                         active_intr.start_time = current_time
-                        self.trace.append((current_time, "START", active_intr))
+                        etype = "START"
                     else:
-                        self.trace.append((current_time, "RESUME", active_intr))
+                        etype = "RESUME"
+                    self.trace.append((current_time, etype, active_intr))
                     active_intr.state = "RUNNING"
                     active_intr.run_intervals.append((current_time, None))
+                    
+                    yield {
+                        "time": current_time,
+                        "active_interrupt": active_intr,
+                        "event": f"{etype}: IRQ {active_intr.irq_number}",
+                        "ready_queue": [e[-1] for e in self.ready_queue._heap],
+                        "stack": self.context_stack[:]
+                    }
                 elif self.context_stack:
                     active_intr = self.context_stack.pop()
                     self.trace.append((current_time, "RESUME", active_intr))
                     active_intr.state = "RUNNING"
                     active_intr.run_intervals.append((current_time, None))
+                    
+                    yield {
+                        "time": current_time,
+                        "active_interrupt": active_intr,
+                        "event": f"RESUME: IRQ {active_intr.irq_number}",
+                        "ready_queue": [e[-1] for e in self.ready_queue._heap],
+                        "stack": self.context_stack[:]
+                    }
                 elif pending:
                     # Advance time to next arrival
                     current_time = pending[0].arrival_time
@@ -162,11 +214,14 @@ class PreemptiveScheduler(Scheduler):
                 else:
                     break
             
-            # 3. Step forward to the next "event" (Arrival or Completion)
+            # 3. Step forward to the next "event"
             time_to_next_arrival = (pending[0].arrival_time - current_time) if pending else float('inf')
             time_to_completion = active_intr.remaining_time
             
             step = min(time_to_next_arrival, time_to_completion)
+            
+            # For the TUI, we might want to yield *intermediate* progress steps
+            # but the scheduler simulation is discrete. We'll handle progress interpolation in the TUI.
             
             active_intr.remaining_time -= step
             current_time += step
@@ -180,6 +235,14 @@ class PreemptiveScheduler(Scheduler):
                 active_intr.turnaround_time = round(active_intr.finish_time - active_intr.arrival_time, 2)
                 self.trace.append((current_time, "FINISH", active_intr))
                 self.execution_log.append(active_intr)
+                
+                yield {
+                    "time": current_time,
+                    "active_interrupt": active_intr,
+                    "event": f"FINISH: IRQ {active_intr.irq_number}",
+                    "ready_queue": [e[-1] for e in self.ready_queue._heap],
+                    "stack": self.context_stack[:]
+                }
                 active_intr = None
                 
         return self.execution_log
@@ -223,7 +286,7 @@ def main():
     interrupts = load_from_proc()
     scheduler = Scheduler()
     scheduler.load_interrupts(interrupts)
-    results = scheduler.run()
+    results = list(scheduler.run())
     
     fmt = "{:<8} {:<10} {:<6} {:<12} {:<10} {:<10} {:<10} {:<10} {:<20}"
     print(fmt.format("IRQ", "TYPE", "PRIO", "ARRIVAL", "START", "BURST", "FINISH", "WAIT", "DEVICE"))
