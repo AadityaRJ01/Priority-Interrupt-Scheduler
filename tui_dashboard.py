@@ -206,6 +206,7 @@ def startup_screen():
     table.add_row("[2]", "Run SYNTHETIC Demo (High Preemption Chance)")
     table.add_row("[3]", "Performance COMPARISON Mode (Standard vs Preemptive)")
     table.add_row("[4]", "Real-time INTERRUPT RATE Monitor")
+    table.add_row("[5]", "CPU Affinity & SMP Distribution Visualizer")
     table.add_row("[Q]", "Quit")
     console.print(Align.center(table))
     

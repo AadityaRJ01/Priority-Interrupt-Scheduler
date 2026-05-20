@@ -27,6 +27,13 @@ except ImportError:
     RateVisualizer = None
     InterruptRateMonitor = None
 
+try:
+    from affinity_visualizer import AffinityVisualizer
+    from affinity_reader import get_cpu_count
+except ImportError:
+    AffinityVisualizer = None
+    get_cpu_count = None
+
 def run_monitor_mode():
     """
     Launches the real-time interrupt rate monitor with a session summary on exit.
@@ -114,9 +121,96 @@ def run_stress_demo():
             os.remove("/tmp/stress_test")
         print("\nStress Demo Completed.")
 
+def run_affinity_mode(live=False):
+    """
+    Launches the CPU Affinity Visualizer dashboard.
+    """
+    if not AffinityVisualizer:
+        print("[Error] affinity_visualizer.py not found. Affinity mode unavailable.")
+        return
+
+    cpus = get_cpu_count()
+    print(f"Reading CPU affinity masks from /proc/irq/*/smp_affinity...")
+    print(f"Analyzing interrupt distribution across {cpus} CPU cores...")
+    time.sleep(1)
+
+    viz = AffinityVisualizer()
+    
+    if live:
+        run_affinity_live_mode(viz)
+    else:
+        while True:
+            viz.run()
+            print("\n" + "-"*50)
+            choice = input("Press [R] to refresh | [L] for live mode | [Q] to quit: ").upper()
+            if choice == 'R':
+                continue
+            elif choice == 'L':
+                run_affinity_live_mode(viz)
+                break
+            elif choice == 'Q':
+                break
+
+def run_affinity_live_mode(viz):
+    """
+    Auto-refreshing dashboard with change logging.
+    """
+    print("Entering Live Affinity Mode (refresh every 5s). Press Ctrl+C to exit.")
+    time.sleep(1)
+    
+    prev_data = None
+    changes_log = []
+    
+    try:
+        while True:
+            curr_data = viz.fetch_data()
+            
+            # Simple change detection
+            if prev_data:
+                # CPU Load changes
+                for cpu_idx, load in curr_data['load'].items():
+                    prev_load = prev_data['load'].get(cpu_idx, 0)
+                    if abs(load - prev_load) > 10: # Threshold for 'significant'
+                        diff = load - prev_load
+                        trend = "+" if diff > 0 else ""
+                        msg = f"CPU{cpu_idx} load changed from {prev_load:.1f} to {load:.1f} ({trend}{diff:.1f}/s)"
+                        changes_log.append(msg)
+                
+                # IRQ Rate changes
+                top_irq = max(curr_data['rates'], key=lambda k: curr_data['rates'][k]['rate'])
+                prev_rate = prev_data['rates'].get(top_irq, {}).get('rate', 0)
+                if abs(curr_data['rates'][top_irq]['rate'] - prev_rate) > 50:
+                    msg = f"IRQ {top_irq} ({curr_data['rates'][top_irq]['device'][:10]}) rate changed from {prev_rate:.1f}/s to {curr_data['rates'][top_irq]['rate']:.1f}/s"
+                    changes_log.append(msg)
+
+            # Update dashboard (Note: Standard AffinityVisualizer.run() doesn't show logs, 
+            # so we'll print them after the TUI refresh for simplicity in this implementation)
+            viz.run()
+            
+            if changes_log:
+                print("\n[Latest Activity Logs]")
+                for log in changes_log[-3:]: # Show last 3
+                    print(f"  {log}")
+            
+            # Countdown
+            for i in range(5, 0, -1):
+                print(f"Next refresh in {i}s...", end="\r")
+                time.sleep(1)
+                
+            prev_data = curr_data
+            
+    except KeyboardInterrupt:
+        print("\n\n>>> LIVE AFFINITY SESSION SUMMARY <<<")
+        if changes_log:
+            print(f"Significant events detected: {len(changes_log)}")
+            print(f"Most recent: {changes_log[-1]}")
+        else:
+            print("No significant changes detected during session.")
+        print("-" * 40)
+
 def main():
     parser = argparse.ArgumentParser(description="Linux Interrupt Scheduler Simulator")
-    parser.add_argument("--mode", choices=["demo", "monitor", "stress-demo"], default="demo",
+    parser.add_argument("--mode", choices=["demo", "monitor", "stress-demo", "affinity", "affinity-live"], default="demo",
                         help="Operating mode for the simulator")
     
     args = parser.parse_args()
@@ -125,6 +219,10 @@ def main():
         run_monitor_mode()
     elif args.mode == "stress-demo":
         run_stress_demo()
+    elif args.mode == "affinity":
+        run_affinity_mode(live=False)
+    elif args.mode == "affinity-live":
+        run_affinity_mode(live=True)
     else:
         # Default interactive menu
         if not startup_screen:
@@ -137,6 +235,9 @@ def main():
                 break
             elif choice == '4':
                 run_monitor_mode()
+                continue
+            elif choice == '5':
+                run_affinity_mode()
                 continue
             
             try:
