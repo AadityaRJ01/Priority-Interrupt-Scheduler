@@ -52,7 +52,7 @@ class ISREngine:
                     print(f"[t={sim_time:5.1f}ms] IRQ {current_intr.irq_number:4} — ISR completed | turnaround={current_intr.turnaround_time:5.1f}ms")
         else:
             # Non-Preemptive Replay
-            results = scheduler_instance.run()
+            results = list(scheduler_instance.run())
             last_sim_time = 0.0
             for intr in results:
                 # Wait until start
@@ -103,7 +103,7 @@ def main():
     synthetic_stream = generate_synthetic_stream(n=8)
     ps = PreemptiveScheduler()
     ps.load_interrupts(synthetic_stream)
-    ps.simulate() # Record the trace
+    list(ps.simulate()) # Record the trace
     engine.run_simulation(ps)
 
     # 2. Real /proc/interrupts Demo
@@ -114,7 +114,7 @@ def main():
     # Use real data but sorted for a cleaner simulation
     ps_real = PreemptiveScheduler()
     ps_real.load_interrupts(real_stream[:15]) # Limit to first 15 for demo
-    ps_real.simulate()
+    list(ps_real.simulate())
     engine.run_simulation(ps_real)
 
     print("\n" + "="*80)
