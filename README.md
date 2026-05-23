@@ -321,13 +321,21 @@ python main.py --mode demo
 ---
 ✨ Features
 Feature 1 — Core Priority Scheduler Simulator
+
 Reads real interrupts from `/proc/interrupts`, classifies them by type, assigns priorities, and runs both non-preemptive and preemptive scheduling algorithms. Displays a live TUI dashboard with ready queue, CPU execution panel, context switch log, metrics, and Gantt chart.
+
 Feature 2 — Real-Time Interrupt Rate Monitor
+
 Polls `/proc/interrupts` every second and computes live interrupts/sec per device. Shows a color-coded bar chart with sparkline trends. Automatically detects and logs rate spikes (3× normal). Includes a stress-demo mode that triggers real I/O and shows interrupt rates change live.
+
 Feature 3 — CPU Affinity Visualizer (SMP)
+
 Reads real affinity bitmasks from `/proc/irq/N/smp\_affinity` and renders a CPU × IRQ grid showing which cores handle which interrupts. Simulates three modes — pinned, balanced, worst-case — and compares latency and load imbalance scores across all three.
+
 Feature 4 — Interrupt Storm Detection + Historical Metrics
+
 Injects a synthetic interrupt storm, demonstrates latency spikes on high-priority IRQs, and simulates kernel throttling. Logs metrics from every run to CSV and renders ASCII trend graphs for data-driven comparison across runs.
+
 ---
 🎮 All Demo Modes
 Command	Description
