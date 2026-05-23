@@ -339,16 +339,28 @@ Injects a synthetic interrupt storm, demonstrates latency spikes on high-priorit
 ---
 🎮 All Demo Modes
 Command	Description
-`python main.py --mode demo`	Synthetic 10-interrupt demo with live TUI
-`python main.py --mode live`	Real `/proc/interrupts` data with TUI
-`python main.py --mode compare`	Non-preemptive vs preemptive side-by-side
-`python main.py --mode report`	Generate `simulation\_report.txt`
-`python main.py --mode monitor`	Live interrupt rate bar chart dashboard
-`python main.py --mode stress-demo`	Automated I/O stress + rate visualization
-`python main.py --mode affinity`	CPU affinity grid + SMP comparison
-`python main.py --mode affinity-live`	Auto-refreshing affinity view
-`python main.py --mode storm --irq N --rate R`	Inject storm on IRQ N at R/sec
-`python main.py --mode graph`	Historical metrics trend graphs
+
+python main.py --mode demo`	Synthetic 10-interrupt demo with live TUI
+
+python main.py --mode live`	Real `/proc/interrupts` data with TUI
+
+python main.py --mode compare`	Non-preemptive vs preemptive side-by-side
+
+python main.py --mode report`	Generate `simulation\_report.txt`
+
+python main.py --mode monitor`	Live interrupt rate bar chart dashboard
+
+python main.py --mode stress-demo`	Automated I/O stress + rate visualization
+
+python main.py --mode affinity`	CPU affinity grid + SMP comparison
+
+python main.py --mode affinity-live`	Auto-refreshing affinity view
+
+python main.py --mode storm --irq N --rate R`	Inject storm on IRQ N at R/sec
+
+python main.py --mode graph
+
+Historical metrics trend graphs
 ---
 📁 Project Structure
 ```
@@ -380,36 +392,62 @@ linux-interrupt-scheduler/
 ---
 🧠 OS Concepts Demonstrated
 Concept	How It's Shown
+
 Interrupt Handling	Real IRQ data parsed live from `/proc/interrupts`
+
 ISR (Interrupt Service Routine)	Simulated top-half execution with burst times
+
 Priority Scheduling	Min-heap queue — timer=1, keyboard=2, network=3, disk=4
+
 Preemption	Higher-priority IRQ interrupts a running ISR mid-execution
+
 Context Switching	LIFO interrupt stack — paused ISR resumes after higher-priority one finishes
+
 Nested Interrupts	Multi-level preemption tracked via context stack depth
+
 Interrupt Latency	Measured per IRQ: `start\_time − arrival\_time`
+
 SMP / CPU Affinity	Real `/proc/irq/N/smp\_affinity` bitmasks visualized
+
 irqbalance	Simulated balanced mode vs real pinned affinity
+
 Interrupt Storm	Injected storm floods queue, spikes latency, triggers throttle
+
 Virtual Filesystem	`/proc` as kernel data interface — read without disk I/O
+
 Linux HZ / Jiffies	Timer IRQ rate matches kernel HZ (250 or 1000/sec)
 ---
 📊 Key Results
 Preemptive vs Non-Preemptive Scheduling:
+
 Metric	Non-Preemptive	Preemptive	Change
+
 TIMER avg latency	~14.2 ms	~1.8 ms	↓ 87%
+
 All IRQs avg latency	~9.4 ms	~6.1 ms	↓ 35%
+
 Avg waiting time	~8.6 ms	~5.3 ms	↓ 38%
+
 Context switches	0	4–8 per run	cost of preemption
+
 SMP Distribution Modes:
+
 Mode	Avg Latency	Load Imbalance Score
+
 Worst-case (all on CPU0)	~18.4 ms	0.91 (severe)
+
 Pinned (real affinity)	~9.2 ms	0.44 (moderate)
+
 Balanced (irqbalance)	~7.1 ms	0.08 (near-balanced)
+
 ---
 ⚙️ Requirements
 Linux (Ubuntu 20.04+ recommended)
+
 Python 3.8+
+
 `pip install rich`
+
 No root access required. Standard user read permissions are sufficient for `/proc/interrupts` and `/proc/irq/`.
 ---
 🔍 How It Works
@@ -443,9 +481,13 @@ proc\_reader.py  ──→  interrupt\_model.py  ──→  scheduler.py
 ```
 ---
 📖 Learning Resources
+
 Linux `/proc/interrupts` documentation
+
 IRQ affinity — Red Hat docs
+
 Linux Interrupt Handling — kernel.org
+
 Operating System Concepts — Silberschatz (textbook)
 ---
 📄 License
